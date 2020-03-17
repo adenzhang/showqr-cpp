@@ -6,6 +6,8 @@
 #include <FL/fl_draw.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Native_File_Chooser.H>
+#include <FL/Fl_Round_Button.H>
+
 #include <vector>
 #include <stdarg.h>
 #include <QRDataBlocks.h>
@@ -79,6 +81,8 @@ struct App : public QRUIControl
     Fl_Native_File_Chooser *mFileChooser;
     Fl_Box *mLabel;
 
+    Fl_Round_Button *mChkBinMode;
+
     QrRenderControl mRender;
     bool mStopped = true;
 
@@ -103,6 +107,10 @@ struct App : public QRUIControl
     static void exit_cb( Fl_Widget *w, void *v )
     {
         ( (App *)v )->close();
+    }
+    static void binmode_cb( Fl_Widget *w, void *v )
+    {
+        ( (App *)v )->setUIFocus();
     }
 
     void print( const char *fmt, ... ) override
@@ -166,6 +174,7 @@ struct App : public QRUIControl
     {
         try
         {
+            mRender.mQrData.mIsBinaryMode = mChkBinMode->value(); // check bin/base64 mode.
             mRender.init( filename );
             mRender.prepareBlock();
             mQrWindow->redraw();
@@ -192,7 +201,7 @@ struct App : public QRUIControl
         mMainWindow = new Fl_Window( WIN_W, WIN_H );
 
         // row 1
-        Fl_Button *btnOpen = new Fl_Button( posX = 10, posY += YGAP, w = 130, h = 25, "Open" );
+        Fl_Button *btnOpen = new Fl_Button( posX = 10, posY += YGAP, w = 130, h = 25, "Open File" );
         posX += w;
         btnOpen->callback( open_cb, this );
         btnOpen->tooltip( "Open a file to start." );
@@ -205,6 +214,12 @@ struct App : public QRUIControl
         posX += 20 + w;
         btnExit->callback( exit_cb, this );
 
+        mChkBinMode = new Fl_Round_Button( posX + 20, posY, w = 130, h = 25, "Bin Mode" );
+        posX += 20 + w;
+        mChkBinMode->value( 1 );
+        mChkBinMode->callback( binmode_cb, this );
+        mChkBinMode->tooltip( "Open new file to take effect!" );
+
         posY += h;
 
         // row 2
@@ -212,7 +227,7 @@ struct App : public QRUIControl
         posY += h + YGAP;
 
         // row 3
-        mLabel = new Fl_Box( XGAP, posY + YGAP, w = WIN_W - 2 * XGAP, h = LABEL_H, "Please open\n file....." ); //
+        mLabel = new Fl_Box( XGAP, posY + YGAP, w = WIN_W - 2 * XGAP, h = LABEL_H, "Please open file to start....." ); //
 
         // Initialize the file chooser
         mFileChooser = new Fl_Native_File_Chooser();
