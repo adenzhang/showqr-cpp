@@ -1,0 +1,4 @@
+[submodule "fltk"]
+	path = fltk
+	url = https://github.com/adenzhang/fltk.git
+	branch = branch-1.3
