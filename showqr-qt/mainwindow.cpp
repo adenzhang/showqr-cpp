@@ -84,7 +84,7 @@ public:
     void setupUI( QWidget *parent )
     {
         mainWindow = parent;
-        mainWindow->setMinimumSize( 950, 600 );
+        mainWindow->setMinimumSize( 1000, 950 );
         QVBoxLayout *vbox = new QVBoxLayout( mainWindow );
         //-- row 1
         QHBoxLayout *hbox = new QHBoxLayout();

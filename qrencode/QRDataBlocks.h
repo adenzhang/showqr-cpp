@@ -503,23 +503,25 @@ struct QrRenderControl
         else if ( mQrData.mIsBinaryMode && mBlockIdx > 0 )
         {
             std::string s( mQrData.mDataBuf.begin(), std::next( mQrData.mDataBuf.begin(), mQrData.mHeaderSize ) );
-            mUIC->print( "%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d",
+            mUIC->print( "%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d, datasize:%d",
                          s.c_str(),
                          mPlayrateFPS,
                          pixelsPerModule,
                          mQrData.getQRModuleSize(),
-                         mQrData.mQrCode.getVersion() );
+                         mQrData.mQrCode.getVersion(),
+                         mQrData.mDataBuf.size() );
         }
         else
         {
             size_t n = std::max( size_t( 50 ), mQrData.mStrBuf.size() );
             std::string s( mQrData.mStrBuf.begin(), std::next( mQrData.mStrBuf.begin(), n ) );
-            mUIC->print( "%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d",
+            mUIC->print( "%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d, datasize:%d",
                          s.c_str(),
                          mPlayrateFPS,
                          pixelsPerModule,
                          mQrData.getQRModuleSize(),
-                         mQrData.mQrCode.getVersion() );
+                         mQrData.mQrCode.getVersion(),
+                         mQrData.mStrBuf.size() );
         }
         return true;
     }

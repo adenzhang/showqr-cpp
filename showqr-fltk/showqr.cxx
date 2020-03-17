@@ -185,8 +185,8 @@ struct App : public QRUIControl
     void init( int argc, char **argv )
     {
         const int YGAP = 5, XGAP = 5;
-        const int WIN_W = 950, WIN_H = 1000;
-        const int LABEL_H = 40;
+        const int WIN_W = 950, WIN_H = 950;
+        const int LABEL_H = 20;
         int posX = 0, posY = 0; // accumulative var
         int w, h; // temp var
         mMainWindow = new Fl_Window( WIN_W, WIN_H );
