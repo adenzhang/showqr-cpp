@@ -488,9 +488,9 @@ struct QrRenderControl
             return false;
         int pixelsPerModule = mQrData.renderCurrentBlock( *mGraph );
         // - show msg
-        if ( mBlockIdx == 0 )
+        if ( mBlockIdx == 0 ) // header
         {
-            size_t n = std::max( size_t( 50 ), mQrData.mStrBuf.size() );
+            size_t n = std::min( size_t( 50 ), mQrData.mStrBuf.size() );
             std::string s( mQrData.mStrBuf.begin(), std::next( mQrData.mStrBuf.begin(), n ) );
             mUIC->print( "%s, file:%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d",
                          s.c_str(),
@@ -513,7 +513,7 @@ struct QrRenderControl
         }
         else
         {
-            size_t n = std::max( size_t( 50 ), mQrData.mStrBuf.size() );
+            size_t n = std::min( size_t( 50 ), mQrData.mStrBuf.size() );
             std::string s( mQrData.mStrBuf.begin(), std::next( mQrData.mStrBuf.begin(), n ) );
             mUIC->print( "%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d, datasize:%d",
                          s.c_str(),
