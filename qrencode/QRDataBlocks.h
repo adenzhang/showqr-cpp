@@ -119,6 +119,10 @@ struct Buffer
 {
     T *data = nullptr;
     Size len = 0;
+
+    Buffer( T *d, size_t n ) : data( d ), len( n )
+    {
+    }
     size_t size() const
     {
         return len;
@@ -209,14 +213,15 @@ struct IGraphic
     virtual size_t getHeight() const = 0;
     virtual void drawRect(
             size_t left, size_t top, size_t width, size_t height, unsigned char colorR, unsigned char colorG, unsigned char colorB ) = 0;
-
     virtual ~IGraphic() = default;
 };
 
 // called by UI framework.
 struct IQrDataRender
 {
-    virtual void renderBlock( IGraphic &g, int ilbock ) = 0;
+    virtual bool prepareDataBlock( int ilbock ) = 0;
+    // return pixel width per QR module. -1 for error
+    virtual int renderCurrentBlock( IGraphic &g ) = 0;
     virtual ~IQrDataRender() = default;
 };
 
@@ -243,7 +248,7 @@ public:
     std::string mStrBuf; // store the last buffer
 
     QREncoder mQrCode;
-    size_t quietZone = 4;
+    size_t quietZone = 1;
 
     QRDataBlocks()
     {
@@ -255,8 +260,14 @@ public:
 
     void init( const std::string &filename, BlockDataProviderPtr dataBlocks, unsigned qrversion )
     {
-        mFileName = filename;
-        mFileName_b64 = Base64::encodeToString( filename.c_str(), filename.size() );
+        { // basename
+            auto pos = filename.find_last_of( "\\/" );
+            if ( std::string::npos != pos )
+                mFileName = filename.substr( pos + 1 );
+            else
+                mFileName = filename;
+        }
+        mFileName_b64 = Base64::encodeToString( mFileName.c_str(), mFileName.size() );
         mBlocks = dataBlocks;
 
         mQRVersion = qrversion;
@@ -327,7 +338,7 @@ public:
         return mDataBuf;
     }
 
-    bool qrEncodeDataBlock( int iblock )
+    bool prepareDataBlock( int iblock ) override
     {
         // encode data block so that it can be rendered.
         if ( mIsBinaryMode )
@@ -351,20 +362,19 @@ public:
         return true;
     }
 
-    void renderBlock( IGraphic &g, int iblock ) override
+    // return pixel width per QR module. -1 for error
+    int renderCurrentBlock( IGraphic &g ) override
     {
-        qrEncodeDataBlock( iblock );
-
         auto W = std::min( g.getHeight(), g.getWidth() ); // picture size
         size_t N = mQrCode.getSize(); // QR size
         if ( quietZone * 2 + N * 2 > W )
         {
             std::cerr << "Too small image to paint qrcode: " << quietZone * 2 + N * 2 << " >= " << W;
-            return;
+            return -1;
         }
         size_t boxsize = ( W - 2 * quietZone ) / N;
         size_t cx = ( g.getWidth() - boxsize * N ) / 2, cy = ( g.getHeight() - boxsize * N ) / 2; // place image at center.
-        g.drawRect( 0, 0, W, W, 255, 255, 255 ); // white
+        g.drawRect( 0, 0, g.getWidth(), g.getHeight(), 255, 255, 255 ); // white
         for ( size_t r = 0; r < N; ++r )
         {
             for ( size_t c = 0; c < N; ++c )
@@ -373,7 +383,11 @@ public:
                     g.drawRect( cx + c * boxsize, cy + r * boxsize, boxsize, boxsize, 0, 0, 0 );
             }
         }
-        return;
+        return boxsize;
+    }
+    int getQRModuleSize()
+    {
+        return mQrCode.getSize();
     }
 
     //    give raw data size, b64 encode it and split it into blocks. Adding header to each block, so that the block size <= blockcap.
@@ -409,6 +423,8 @@ struct QRUIControl
     virtual void print( const char *fmt, ... ) = 0;
     virtual void enableQRTimer( double seconds ) = 0;
     virtual void playStatusChanged( bool ) = 0;
+
+    virtual void redraw() = 0;
     virtual void close() = 0;
     virtual ~QRUIControl() = default;
 };
@@ -460,42 +476,78 @@ struct QrRenderControl
         mStopped = !mStopped;
         return !mStopped;
     }
-    void showNextQR()
+    bool prepareBlock()
     {
         if ( !valid() )
-            return;
-        mGraph->drawRect( 0, 0, mGraph->getWidth(), mGraph->getHeight(), 255, 255, 255 );
-        mQrData.renderBlock( *mGraph, mBlockIdx );
-        if ( mQrData.mIsBinaryMode && mBlockIdx > 0 )
+            return false;
+        return mQrData.prepareDataBlock( mBlockIdx );
+    }
+    bool renderCurrentBlock()
+    {
+        if ( !valid() )
+            return false;
+        int pixelsPerModule = mQrData.renderCurrentBlock( *mGraph );
+        // - show msg
+        if ( mBlockIdx == 0 )
+        {
+            size_t n = std::max( size_t( 50 ), mQrData.mStrBuf.size() );
+            std::string s( mQrData.mStrBuf.begin(), std::next( mQrData.mStrBuf.begin(), n ) );
+            mUIC->print( "%s, file:%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d",
+                         s.c_str(),
+                         mQrData.mFileName.c_str(),
+                         mPlayrateFPS,
+                         pixelsPerModule,
+                         mQrData.getQRModuleSize(),
+                         mQrData.mQrCode.getVersion() );
+        }
+        else if ( mQrData.mIsBinaryMode && mBlockIdx > 0 )
         {
             std::string s( mQrData.mDataBuf.begin(), std::next( mQrData.mDataBuf.begin(), mQrData.mHeaderSize ) );
-            mUIC->print( "%s", s.c_str() );
+            mUIC->print( "%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d",
+                         s.c_str(),
+                         mPlayrateFPS,
+                         pixelsPerModule,
+                         mQrData.getQRModuleSize(),
+                         mQrData.mQrCode.getVersion() );
         }
         else
         {
             size_t n = std::max( size_t( 50 ), mQrData.mStrBuf.size() );
             std::string s( mQrData.mStrBuf.begin(), std::next( mQrData.mStrBuf.begin(), n ) );
-            mUIC->print( "%s", s.c_str() );
+            mUIC->print( "%s, rateFPS:%.1f, modulePixels:%d, modules:%d, version:%d",
+                         s.c_str(),
+                         mPlayrateFPS,
+                         pixelsPerModule,
+                         mQrData.getQRModuleSize(),
+                         mQrData.mQrCode.getVersion() );
         }
+        return true;
+    }
+    bool incBlock( bool bEnableTimer )
+    {
         if ( mStopped )
-            return;
+            return false;
         ++mBlockIdx;
-        if ( mBlockIdx >= mQrData.mBlockCount )
+        if ( mBlockIdx >= mQrData.mBlockCount ) // completed
         {
             mBlockIdx = mQrData.mBlockCount;
             mStopped = true;
             mUIC->playStatusChanged( false );
         }
-        else
+        else if ( bEnableTimer )
         {
             mUIC->enableQRTimer( 1.0 / mPlayrateFPS );
         }
+
+        return true;
     }
-    void onKeyEvent( unsigned char keyCode )
+
+    // user may need to convert to ascii code
+    void onKeyEvent( unsigned char keyCodeASCII )
     {
         if ( !valid() )
             return;
-        char ch = keyCode;
+        char ch = keyCodeASCII;
         if ( ch >= '0' && ch <= '9' )
         { // number
             if ( mUserKeyNumber != -1 )
@@ -504,7 +556,7 @@ struct QrRenderControl
                 mUserKeyNumber = ( (int)ch ) - (int)'0';
             return;
         }
-        else if ( ch == '\n' || ch == '\r' )
+        else if ( ch == '\n' )
         { // enter
             if ( mUserKeyNumber != -1 )
             {
@@ -512,7 +564,8 @@ struct QrRenderControl
                 if ( mBlockIdx >= mQrData.mBlockCount )
                     mBlockIdx = mQrData.mBlockCount - 1;
                 mUserKeyNumber = -1;
-                showNextQR();
+                prepareBlock();
+                mUIC->redraw();
             }
             return;
         }
@@ -526,16 +579,8 @@ struct QrRenderControl
             mUIC->close();
             return;
         case ' ': // stop
-            if ( mStopped )
-            {
-                mStopped = false;
-            }
-            else
-            {
-                mStopped = true;
-                return;
-            }
-            break;
+            flipActive();
+            return;
         case 'h': // home
             mBlockIdx = 0;
             break;
@@ -586,6 +631,7 @@ struct QrRenderControl
             //            }
             //            break;
         }
-        showNextQR();
+        prepareBlock();
+        mUIC->redraw();
     }
 };

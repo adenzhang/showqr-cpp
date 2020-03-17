@@ -29,9 +29,9 @@ set(FLTK_STATICLIBS  ${FLTKDIR}/lib-debug/libfltk.a ${FLTKDIR}/lib-debug/libfltk
 #add_executable( pack pack.cxx )
 #add_executable( keyboard keyboard.cxx keyboard_ui.cxx )
 #add_executable( tile tile.cxx )
-add_executable( showqr showqr.cxx )
+add_executable( showqr-fltk showqr.cxx )
 
-target_link_libraries( showqr
+target_link_libraries( showqr-fltk
     fltk
     fltk_images
     qrencode

@@ -22,7 +22,10 @@ public:
     void draw()
     {
         if ( mRender )
-            mRender->showNextQR();
+        {
+            mRender->mGraph = this;
+            mRender->renderCurrentBlock();
+        }
     }
     void drawRect( size_t left, size_t top, size_t w, size_t h, unsigned char colorR, unsigned char colorG, unsigned char colorB ) override
     {
@@ -35,6 +38,35 @@ public:
     size_t getHeight() const override
     {
         return h();
+    }
+
+    // return 1 when handled .
+    int handle( int event ) override
+    {
+        // Need to respond to FOCUS events in order to handle keyboard
+        if ( event == FL_FOCUS )
+            return 1;
+        if ( event == FL_UNFOCUS )
+            return 1;
+
+        // Now define responses to KEY DOWN events
+        if ( event == FL_KEYBOARD )
+            return 1;
+
+        // And we might also need to response to KEY release
+        if ( event == FL_KEYUP )
+        {
+            int key = Fl::event_key();
+
+            if ( key == FL_Enter )
+                key = '\n';
+            if ( key > 0 && key <= 127 )
+                mRender->onKeyEvent( key );
+            //            myOutputBox->value( "keyup" );
+            return 1; // to indicate we used the key event
+        }
+
+        return 0; // we had no interest in the event
     }
     QrRenderControl *mRender = nullptr;
 };
@@ -51,8 +83,6 @@ struct App : public QRUIControl
     bool mStopped = true;
 
     std::vector<char> mBuf;
-
-    double mPlayrateFPS = 2;
 
     App() : mBuf( 256 )
     {
@@ -93,6 +123,11 @@ struct App : public QRUIControl
         if ( active )
             mQrWindow->redraw();
     }
+    void redraw() override
+    {
+        mQrWindow->redraw();
+        mLabel->redraw_label();
+    }
     void close() override
     {
         exit( 0 );
@@ -113,17 +148,18 @@ struct App : public QRUIControl
             startEncodeFile( mFileChooser->filename() );
             break;
         }
-        takeFocus();
+        setUIFocus();
     }
     void onTimerEvent()
     {
-        takeFocus();
-        mQrWindow->redraw();
-        mLabel->redraw_label();
+        redraw();
+        if ( mRender.incBlock( true ) )
+            mRender.prepareBlock();
+        setUIFocus();
     }
     void onBtnStart()
     {
-        takeFocus();
+        setUIFocus();
         mRender.flipActive();
     }
     void startEncodeFile( const char *filename )
@@ -131,6 +167,7 @@ struct App : public QRUIControl
         try
         {
             mRender.init( filename );
+            mRender.prepareBlock();
             mQrWindow->redraw();
         }
         catch ( std::runtime_error &err )
@@ -140,10 +177,11 @@ struct App : public QRUIControl
             return;
         }
     }
-    void takeFocus()
+    void setUIFocus()
     {
-        mBtnStart->take_focus();
+        mQrWindow->take_focus();
     }
+
     void init( int argc, char **argv )
     {
         const int YGAP = 5, XGAP = 5;
@@ -178,8 +216,6 @@ struct App : public QRUIControl
 
         // Initialize the file chooser
         mFileChooser = new Fl_Native_File_Chooser();
-        //        fc->filter( "Text\t*.txt\n" );
-        //        fc->preset_file( );
 
         mMainWindow->resizable( mMainWindow );
         mMainWindow->end();
@@ -189,24 +225,13 @@ struct App : public QRUIControl
         mRender.mGraph = mQrWindow;
         mRender.mUIC = this;
         mQrWindow->mRender = &mRender;
-        takeFocus();
+        setUIFocus();
     }
+
     int run()
     {
-        Fl::add_timeout( 1.0f / mPlayrateFPS, timer_cb, this );
+        Fl::add_timeout( 1.0f / 2, timer_cb, this );
         return Fl::run();
-
-        //        while ( Fl::wait() )
-        //        {
-        //            int key = Fl::event_key();
-        //            if ( key && key <= 127 )
-        //            {
-        //                printf( "key pressed: %d, %d\n", key, key & 0xFF );
-        //                mQrWindow->redraw();
-        //                mRender.onKeyEvent( key );
-        //            }
-        //        }
-        //        return 0;
     }
 };
 int main( int argc, char **argv )
