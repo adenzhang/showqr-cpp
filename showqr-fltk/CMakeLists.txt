@@ -4,6 +4,13 @@ set(PROJNAME fltk-tests)
 add_definitions( -std=c++17 )
 
 #set(FLTKDIR /mnt/ldata/program/fltk)
+if( WIN32 )
+    message( "**** cmake win32 ***")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_WIN32 -D__WIN32__ -DWIN32")
+else()  # todo macos
+    message( "**** cmake linux ***")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__linux -D__linux__ -Dlinux")
+endif()
 
 set(INCLUDES ${INCLUDES} 
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -12,7 +19,6 @@ set(INCLUDES ${INCLUDES}
 #    ${FLTKDIR}/include/FL/images
 )
 include_directories(${INCLUDES} )
-message( "***  INCLUDES: ${INCLUDES}")
 
 set(FLTK_COMPILE_FLAGS -D_THREAD_SAFE -D_REENTRANT -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE)
 set(FLTK_LINKLIBS -lm -lX11 -lXext -lpthread -lXfixes -ldl)
